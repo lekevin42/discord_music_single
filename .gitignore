@@ -9,3 +9,8 @@ docs/_build
 *.png
 *.jpg
 *.flac
+*.txt
+examples
+docs
+discord
+*.dll
