@@ -53,8 +53,12 @@ def parse_yt(word):
 		html = response.read()
 		soup = BeautifulSoup(html, "html.parser")
 		for vid in soup.findAll(attrs={'class':'yt-uix-tile-link'}):
-			song = 'https://youtube.com' + vid['href']
-			#print(vid)
+			if vid['href'].find("http") != -1:
+				query = query.replace("+", " ")
+				query += " lyrics"
+				song = parse_yt(query)
+			else:
+				song = 'https://youtube.com' + vid['href']
 			return song
 
 	except urllib.error.HTTPError as error:
@@ -68,16 +72,15 @@ def crawl_rec(link, max):
 		response = urlopen(link)
 		html = response.read()
 		soup = BeautifulSoup(html, "html.parser")
-		#print(link, counter)
-		#for vid in soup.findAll("a", attrs={'class': 'yt-uix-sessionlink content-link spf-link spf-link '}):
+
 		for vid in soup.findAll("a", attrs={'class': ' content-link spf-link yt-uix-sessionlink spf-link '}):
 			if counter < max:
 				song = "https://youtube.com" + vid['href']
 				counter += 1
-				#print(song, counter)
+
 			else:
 				max += 1
-				print(song, link, max)
+
 				return song, max 
 
 	except urllib.error.HTTPError as error:

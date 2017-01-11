@@ -200,7 +200,7 @@ class Bot(discord.Client):
 				channels.write(str(message.server))
 				channels.write("\n" + str(message.channel.name))
 				if self.voice.voice_channel is not None:
-					channels.write("\n" + str(self.voice_channel))
+					channels.write("\n" + str(self.voice.voice_channel))
 					await self.send_message(message.channel, "```Spawn point is set at {} and {}!```".format(message.channel.name, self.voice.voice_channel))
 				else:
 					await self.send_message(message.channel, "```Spawn point is set at {}!```".format(message.channel.name))
@@ -347,8 +347,9 @@ class Bot(discord.Client):
 			if not self.is_voice_connected(message.server):
 				await self.send_message(message.channel, '```Not connected to a voice channel```')
 				return				
-
+			#print("NOTLIKETHIS")
 			link = message.content[6:].strip()
+			
 			await self.music.play(message.channel, link)
 		
 		elif message.content.startswith('!rep'):
@@ -420,7 +421,6 @@ class Bot(discord.Client):
 		msg = await self.check_music()
 	
 		if msg is not None:
-			await self.play_music(self.default_text_channel)
 			await self.send_message(self.default_text_channel, msg)
 				
 def main():
@@ -429,7 +429,7 @@ def main():
 	try:
 		bot = Bot()
 		
-		bot.run("token")
+		bot.run('token')
 		
 	except Exception as error:
 		print(error)

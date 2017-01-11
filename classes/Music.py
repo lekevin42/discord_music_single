@@ -5,64 +5,105 @@ from parsers.parser import *
 from queue import *
 from classes.Playlist import *
 
+class Entry:
+	def __init__(self, player, channel, title, url):
+		self.player = player
+		self.channel = channel
+		self.title = title
+		self.url = url
+		
+
 class Music:
 	def __init__(self, bot):
 		self.bot = bot
 		self.play_list = asyncio.Queue()
 		self.play_next_song = asyncio.Event()
-		self.song = None
-		self.player = None
 		self.playlist = Playlist(bot)
 		self.ydl_opts = None
 		self.rec_songs = False
 		self.rec_list = []
+		self.current = None
+		self.audio_player = self.bot.loop.create_task(self.audio_player_task())
+		self.found = False
+		self.max = 1
 	
-	def cancel_player(self):
-		self.player = None
+	async def audio_player_task(self):
+		while True:
+			self.play_next_song.clear()
+			self.current = await self.play_list.get()
+			await self.bot.send_message(self.current.channel, "```Now playing: {}```".format(str(self.current.title)))
+			self.current.player.start()
+			
+			while self.rec_songs and not self.found:
+				next_url, self.max = crawl_rec(self.current.url, self.max)
+				if self.rec_list.count(next_url) is 0:
+					self.found = True
+					await self.add(self.current.channel, next_url)
+					self.rec_list.append(next_url)
+
+			self.found = False
+			self.max = 1	
+			await self.play_next_song.wait()
+
 		
 	def toggle_next_song(self):
-		self.loop.call_soon_threadsafe(self.play_next_song.set)
+		self.bot.loop.call_soon_threadsafe(self.play_next_song.set)
 
-	def is_playing(self):
-		return self.player is not None and self.player.is_playing()
 		
+	def is_playing(self):
+		if self.current is None:
+			return False
+		
+		return True
+	
+	
 	def set_ydl_opts(self):
 		"""Set youtube dl options when extracting audio for the player."""
 		self.ydl_opts = {
 			'format': 'bestvideo+bestaudio/best',
 			'quiet' : True,
 		}
-		
+	
+	
 	def get_info(self, song):
 		"""Call upon the youtube-dl library to obtain info about the song."""
-		with youtube_dl.YoutubeDL(self.ydl_opts) as ydl:
-			result = ydl.extract_info(song, download=False)
+		try:
+			with youtube_dl.YoutubeDL(self.ydl_opts) as ydl:
+				result = ydl.extract_info(song, download=False)
+			
+		except youtube_dl.utils.DownloadError as dlError:
+			result = None
 						
 		return result
 	
+	
 	def pause(self):
-		if self.player.is_playing():
-			self.player.pause()
+		if self.is_playing():
+			self.current.player.pause()
+	
 	
 	def resume(self):
-		if self.player is not None and not self.is_playing():
-			self.player.resume()
+		if self.is_playing():
+			self.current.player.resume()
+	
 	
 	async def skip(self, channel):
-		if self.player.is_playing():
-			self.player.stop()
-			self.player = None
-			await self.play_music(channel)
+		if self.is_playing():
+			self.current.player.stop()
+			self.current = None
 
+			
 	async def clear(self, channel):
-		if self.player.is_playing():
-			self.player.stop()
+		if self.is_playing():
+			self.current.player.stop()
+		
 		while not self.play_list.empty():
 			await self.play_list.get()
 				
-		self.player = None
+		self.current = None
 		await self.bot.send_message(channel, "```Queue has been cleared!```")
-		
+	
+	
 	async def shuffle(self, channel):
 		playlist = []
 		while not self.play_list.empty():
@@ -75,7 +116,8 @@ class Music:
 			await self.play_list.put(song)
 		
 		await self.bot.send_message(channel, "```Queue has been shuffled.```")
-		
+	
+	
 	async def queue(self, channel):
 		"""Look into which songs are queued currently."""
 		save_queue = Queue()
@@ -86,10 +128,10 @@ class Music:
 			
 		if not self.play_list.empty():
 			while not self.play_list.empty():
-				song = await self.play_list.get()
-				info = self.get_info(song)
-				info_list.put(info['title'])
-				save_queue.put(song)
+				current = await self.play_list.get()
+				title = current.title
+				info_list.put(title)
+				save_queue.put(current)
 				
 			length = int(info_list.qsize() / 10)
 				
@@ -103,66 +145,26 @@ class Music:
 				msg, counter, how_many = await self.bot.print_songs(msg, channel, length, counter, how_many)
 		else:
 			await self.bot.send_message(channel, "```Queue is currently empty.```")
-		
+	
+	
 	async def play(self, channel, link):
-		if self.player and self.rec_songs:
+		if self.current and self.rec_songs:
 			await self.bot.send_message(channel, "```!rec mode is currently on! Turn !rec mode off or use !clear to queue a new song!```")
 		
 		await self.add(channel, link)
-		await self.play_music(channel)
 	
-		#if self.player == None and self.rec_songs:
-		#	await self.add(channel, link)
-		#	await self.play_music(channel)
-				
-		#elif self.rec_songs == False:
-		#	await self.add(channel, link)
-		#	await self.play_music(channel)
-				
-		#else:
-		#	await self.bot.send_message(channel, "```!rec mode is currently on! Turn !rec mode off or use !clear to queue a new song!```")
-		
-	async def play_music(self, channel):
-		"""This function is used to start the music player where channel is the Discord channel that text is sent to."""
-		found = False
-		max = 1
-		try:
-			if self.player is None:
-				"""If the player does not exist, create one. Otherwise move on."""
-				while not self.play_list.empty():
-					self.play_next_song.clear()
-					self.song = await self.play_list.get()
-						
-					info = self.get_info(self.song)
-					
-					self.player = await self.bot.voice.voice_state.create_ytdl_player(self.song, after=self.toggle_next_song)
-					self.player.volume = 0.1
-						
-					self.player.start()
-				
-					msg = ":notes: **Playing:   {}** :notes:\n" 
-					
-					await self.bot.send_message(channel, msg.format(info['title']))
-					
-					"""If the recommended songs is set to True, query youtube for the next song and add it to a list to prevent repeats."""
-					while self.rec_songs and not found:
-						next_url, max = crawl_rec(self.song, max)
-
-						if self.rec_list.count(next_url) is 0:
-							found = True
-							await self.play_list.put(next_url)
-							self.rec_list.append(next_url)
-						
-					found = False
-					max = 1
-					await self.play_next_song.wait()	
-				
+	
+	async def set_music(self, song, channel):
+		try:	
+			player = await self.bot.voice.voice_state.create_ytdl_player(song, after=self.toggle_next_song)
+			player.volume = 0.1
+			info = self.get_info(song)
+			
+			entry = Entry(player, channel, info['title'], song)
+			await self.play_list.put(entry)
+			
 		except Exception as error:
-			await self.bot.send_message(channel, '```{}```'.format(error))
-			await self.bot.send_message(channel, '```An error has occured! Restarting...```')
-			await self.bot.send_file(channel, "files/maid/maid-error.png")
-			await self.bot.save_songs()
-			os.execv(sys.executable, [sys.executable] + sys.argv)
+			print(error)
 			
 	async def add(self, channel, link):
 		"""This function is used to decide what to add to the queue for playing."""	
@@ -177,12 +179,11 @@ class Music:
 					shuffle(list)
 					
 					for song in list:
-						await self.play_list.put(song)
+						await self.set_music(song, channel)
 					await self.bot.send_message(channel, "```I have queued your youtube playlist!```")
 					
 				else:
 					await self.bot.send_message(channel, "```Error parsing through list!```")
-			
 			
 			elif link.find(".txt") != -1:
 				"""link is user created playlist, read from file and add to queue"""
@@ -198,7 +199,7 @@ class Music:
 					shuffle(playList)
 					
 					for song in playList:
-						await self.play_list.put(song)
+						await self.set_music(song, channel)
 					await self.bot.send_message(channel, "```I have queued {}!```".format(file))
 				
 				except FileNotFoundError:
@@ -206,9 +207,14 @@ class Music:
 			
 			elif link.find("http") != -1:		
 				"""link is a single youtube song, just add to queue"""
-				await self.play_list.put(link)
-				await self.bot.send_message(channel, "```I have queued your song request!```")
-			
+				
+				info = self.get_info(link)
+				if info == None:
+					await self.bot.send_message(channel, "```Copyright Error! Try a different query!```")
+
+				await self.set_music(link, channel)
+				await self.bot.send_message(channel, "```Queued song: {0} in position {1}!```".format(info['title'], self.play_list.qsize()))
+					
 			else:
 				"""if none of the above, link is a youtube query pass to beautifulsoup4 parser to get song and add to queue"""
 				link += " lyrics"
