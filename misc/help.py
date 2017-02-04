@@ -20,6 +20,8 @@ def general_help():
 !dict - query dictionary.com\n \
 !rec - automatic youtube queue\n \
 !udict - query urbandictionary.com\n \
+!meme - unleash the memes\n \
+!roll - use like magic ball \n \
 \n```  \
 "
 

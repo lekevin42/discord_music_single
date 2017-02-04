@@ -1,4 +1,4 @@
-# Name: youParse.py
+# Name: Extract_Playlist.py
 # Version: 1.5
 # Author: pantuts
 # Email: pantuts@gmail.com
@@ -7,7 +7,9 @@
 # Agreement: You can use, modify, or redistribute this tool under
 # the terms of GNU General Public License (GPLv3).
 # This tool is for educational purposes only. Any damage you make will not affect the author.
-# Usage: python3 youParse.py youtubeURLhere
+# Usage: python3 Extract_Playlist.py youtubeURLhere
+
+#This program was not created by me but it is used to extract information from youtube
  
 import re
 import urllib.request
