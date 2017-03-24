@@ -237,7 +237,7 @@ class Bot(discord.Client):
 		
 		elif message.content.startswith("!meme"):
 			"""Get a random meme from a list and send it to chat."""
-			rand = randint(0, len(self.loader.get_memes()))
+			rand = randint(0, len(self.loader.get_memes()) - 1)
 			await self.send_message(message.channel, self.loader.get_memes()[rand])
 		
 		
@@ -476,7 +476,9 @@ def main():
 		
 		user, pas = load_credentials()
 		
-		bot.run('token')
+		bot.run(user, pas)
+		
+		#bot.run("MjQ2MDM1MTMzMzU2OTY1ODg4.Cy-4JA.WiRDfXdKEBNpPnNJS1AGukHT7zE")
 		
 	except Exception as error:
 		print(error)

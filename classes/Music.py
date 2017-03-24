@@ -32,6 +32,7 @@ class Music:
 	
 	def __init__(self, bot):
 		self.bot = bot
+		self.repeat_song = None
 		self.play_list = asyncio.Queue()
 		self.play_next_song = asyncio.Event()
 		self.playlist = Playlist(bot)
@@ -69,6 +70,7 @@ class Music:
 				
 				#Use the voice client connection in order to create a ytdl player that will play audio
 				self.player = await self.bot.voice.voice_state.create_ytdl_player(self.entry.song, after=self.toggle_next_song)
+				self.repeat_song = self.entry.song
 				self.player.volume = 0.1
 				
 				#Display a playing message for the current song and start the player.
@@ -335,8 +337,11 @@ class Music:
 				song = await self.play_list.get()
 				list.append(song)
 					
+			info = get_info(self.song)
+			
 			while counter < amt:
-				await self.play_list.put(self.song)
+				entry = Entry(song, channel, info['title'])
+				await self.play_list.put(entry)
 				counter += 1
 				
 			while len(list) != 0:
