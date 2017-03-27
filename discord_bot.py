@@ -30,7 +30,7 @@ from parsers.parser import *
 
 #Load opus for discord voice client
 if not discord.opus.is_loaded():
-	discord.opus.load_opus('libopus-0.dll')
+	discord.opus.load_opus('libopus-0x64.dll')
 
 class Bot(discord.Client):
 	"""
@@ -385,9 +385,12 @@ class Bot(discord.Client):
 		elif message.content.startswith('!rep'):
 			"""Given a number, repeat the song that is currently playing."""
 			amt = message.content[5:].strip()
-			await self.music.repeat_song(message.channel, amt)
+			await self.music.r_song(message.channel, amt)
 			
-			
+		
+		elif message.content.startswith("!link"):
+			await self.music.link_song(message.channel)
+		
 		elif message.content.startswith("!response"):
 			"""Used to do things with response."""
 			r_author = message.author
@@ -474,11 +477,11 @@ def main():
 	try:
 		bot = Bot()
 		
-		user, pas = load_credentials()
+		#user, pas = load_credentials()
 		
-		bot.run(user, pas)
+		#bot.run(user, pas)
 		
-		#bot.run("MjQ2MDM1MTMzMzU2OTY1ODg4.Cy-4JA.WiRDfXdKEBNpPnNJS1AGukHT7zE")
+		bot.run("MjQ2MDM1MTMzMzU2OTY1ODg4.Cy-4JA.WiRDfXdKEBNpPnNJS1AGukHT7zE")
 		
 	except Exception as error:
 		print(error)

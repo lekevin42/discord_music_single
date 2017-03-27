@@ -5,6 +5,7 @@ from classes.Extract_Playlist import *
 from parsers.parser import *
 from queue import *
 from classes.Playlist import *
+import time
 
 class Entry:
 	"""
@@ -16,10 +17,11 @@ class Entry:
 		3) title - title of the song
 	"""
 	
-	def __init__(self, song, channel, title):
-		self.song = song
+	def __init__(self, file_name, channel, title, song):
+		self.file_name = file_name
 		self.channel = channel
 		self.title = title
+		self.song = song
 		
 
 class Music:
@@ -46,8 +48,7 @@ class Music:
 		self.max = 1
 		
 	def cancel_player(self):
-		"""Cancel the music player when it is no longer required."""
-		
+		"""Cancel the music player when it is no longer required."""	
 		self.player = None
 		
 		
@@ -68,11 +69,12 @@ class Music:
 				#Grab the entry
 				self.entry = await self.play_list.get()
 				
-				#Use the voice client connection in order to create a ytdl player that will play audio
-				self.player = await self.bot.voice.voice_state.create_ytdl_player(self.entry.song, after=self.toggle_next_song)
-				self.repeat_song = self.entry.song
+	
+				#Use the voice client connection in order to create a ffmpeg player that will play audio
+
+				self.player = self.bot.voice.voice_state.create_ffmpeg_player(self.entry.file_name, after=self.toggle_next_song)
 				self.player.volume = 0.1
-				
+
 				#Display a playing message for the current song and start the player.
 				await self.bot.send_message(self.entry.channel, "```Now playing: {}```".format(str(self.entry.title)))
 				self.player.start()
@@ -86,7 +88,8 @@ class Music:
 						self.rec_list.append(next_url)
 
 				self.found = False
-				self.max = 1	
+				self.max = 1
+					
 				await self.play_next_song.wait()
 					
 		
@@ -116,16 +119,31 @@ class Music:
 		"""Set youtube dl options when extracting audio for the player."""
 		
 		self.ydl_opts = {
-			'format': 'bestvideo+bestaudio/best',
-			'quiet' : True,
+			'quiet': True,
+			'outtmpl': "E://factor_maid/discord.py/songs/%(id)s.%(ext)s",
+			'postprocessors': [{
+				'key': 'FFmpegExtractAudio',
+				'preferredcodec': 'mp3',
+				'preferredquality': '192',
+			}],
 		}
 	
+	def get_download(self, song):
+		"""Call upon the youtube-dl library to obtain info about the song."""
+		try:
+			with youtube_dl.YoutubeDL(self.ydl_opts) as ydl:
+				result = ydl.extract_info(song)
+			
+		except youtube_dl.utils.DownloadError as dlError:
+			result = None
+						
+		return result
 	
 	def get_info(self, song):
 		"""Call upon the youtube-dl library to obtain info about the song."""
 		
 		try:
-			with youtube_dl.YoutubeDL(self.ydl_opts) as ydl:
+			with youtube_dl.YoutubeDL() as ydl:
 				result = ydl.extract_info(song, download=False)
 			
 		except youtube_dl.utils.DownloadError as dlError:
@@ -173,6 +191,9 @@ class Music:
 		self.player = None
 		await self.bot.send_message(channel, "```Queue has been cleared!```")
 	
+	
+	async def link_song(self, channel):
+		await self.bot.send_message(channel, "{}".format(self.player.url))
 	
 	async def shuffle(self, channel):
 		"""
@@ -242,6 +263,8 @@ class Music:
 			await self.bot.send_message(channel, "```!rec mode is currently on! Turn !rec mode off or use !clear to queue a new song!```")
 		
 		await self.add(channel, link)
+		
+	
 	
 	
 	async def set_music(self, song, channel):
@@ -253,8 +276,15 @@ class Music:
 			await self.bot.send_message(channel, "```{} is copyrighted, cannot queue!```".format(song))
 			return
 			
+		#Download song entirely before placing in queue.
+		result = self.get_download(song)
+		
+		#Grab mp3 file to pass into entry object
+		file_name = "songs/{}.mp3".format(result["id"])
+		
 		#Create an entry object and place in queue
-		entry = Entry(song, channel, info['title'])
+		entry = Entry(file_name, channel, result["title"], song)
+
 		await self.play_list.put(entry)
 			
 		
@@ -319,7 +349,7 @@ class Music:
 			await self.bot.send_message(channel, "```Usage: !play <url/song/play_list/query>```")
 			
 			
-	async def repeat_song(self, channel, amt):
+	async def r_song(self, channel, amt):
 		"""
 		Function that allows a user to repeat the song an x amt of times
 		
@@ -337,11 +367,11 @@ class Music:
 				song = await self.play_list.get()
 				list.append(song)
 					
-			info = get_info(self.song)
+			#info = self.get_info(self.entry.song)
 			
 			while counter < amt:
-				entry = Entry(song, channel, info['title'])
-				await self.play_list.put(entry)
+				#entry = Entry(song, channel, info['title'])
+				await self.play_list.put(self.entry)
 				counter += 1
 				
 			while len(list) != 0:

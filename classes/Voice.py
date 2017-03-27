@@ -45,6 +45,7 @@ class Voice:
 		self.voice_state = await self.bot.join_voice_channel(channel)
 		self.voice_channel = channel.name
 
+
 		
 	async def leave_channel(self, channel):
 		"""Function that leaves the voice channel
